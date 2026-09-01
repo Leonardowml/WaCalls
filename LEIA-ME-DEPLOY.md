@@ -62,3 +62,35 @@ e depois mostrar a tela pra ler o QR Code com o chip de teste.
 - `Dockerfile`, `.dockerignore`, `docker-compose.yml` — para o EasyPanel montar
 
 O resto é o código original, sem modificação.
+
+---
+
+## Importante: o áudio precisa de portas próprias
+
+O programa original foi feito para rodar **dentro da empresa, na mesma rede**.
+Numa VPS ele não funciona sem estes dois ajustes:
+
+**1. Dizer qual é o IP público da VPS**
+
+Na aba *Environment*, adicione (troque pelo IP da sua VPS):
+
+```
+WACALLS_PUBLIC_IP=203.0.113.10
+```
+
+Sem isso, o servidor manda para o navegador um endereço interno, que só existe
+dentro do próprio servidor. O navegador tenta chegar lá, não consegue, e a
+chamada morre em silêncio.
+
+**2. Abrir a faixa de áudio (UDP 50000 a 50019)**
+
+Essas portas precisam estar:
+- publicadas no serviço (aba *Ports* ou *Advanced* do EasyPanel), como **UDP**
+- liberadas no firewall da VPS
+
+Se o EasyPanel não permitir publicar portas UDP, use o `docker-compose.yml`
+deste repositório direto na VPS — ele já vem com a faixa configurada.
+
+**Como saber se deu certo:** nos logs deve aparecer
+`browser ice state state=connected`. Se aparecer `checking` e depois `closed`,
+é porque um dos dois itens acima ainda está faltando.

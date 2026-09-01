@@ -8,9 +8,14 @@ services:
     # cadeado (https) e o painel/proxy na frente.
     ports:
       - "127.0.0.1:8080:8080"
+      # Audio: precisa ser acessivel de fora, senao a chamada nao conecta.
+      - "50000-50019:50000-50019/udp"
     environment:
       WACALLS_USER: ${WACALLS_USER:-admin}
       WACALLS_PASSWORD: ${WACALLS_PASSWORD:?defina a senha}
+      WACALLS_PUBLIC_IP: ${WACALLS_PUBLIC_IP:?defina o IP publico da VPS}
+      WACALLS_UDP_PORT_MIN: "50000"
+      WACALLS_UDP_PORT_MAX: "50019"
     volumes:
       - wacalls-data:/data
 
