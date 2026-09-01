@@ -21,8 +21,14 @@ export const useAcceptCall = (micId: string | null) =>
       return res.call.callId;
     },
     onError: (e: Error) => {
+      // 409 era descartado em silencio: a chamada sumia da tela sem explicacao.
       if (e.message.includes("409")) {
         clearIncoming();
+        toast.error(
+          e.message.includes("already on a call")
+            ? "Você já está em uma ligação."
+            : "Outro atendente atendeu esta ligação.",
+        );
         return;
       }
       toast.error(e.message);

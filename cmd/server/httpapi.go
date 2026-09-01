@@ -263,20 +263,29 @@ func (s *server) doAccept(sess *Session, w http.ResponseWriter, r *http.Request)
 	id := r.PathValue("id")
 	ac, ok := sess.reg.get(id)
 	if !ok {
+		// As tres recusas abaixo eram silenciosas: o atendimento falhava e o
+		// log nao registrava nada. Sem isso nao da para diagnosticar.
+		s.log.Warn("atender recusado: chamada nao existe mais", "call_id", id)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such call"})
 		return
 	}
 	owner := clientID(r)
 	if other := s.broker.ownerActiveCall(owner); other != "" && other != id {
+		s.log.Warn("atender recusado: este atendente ja esta em uma ligacao",
+			"call_id", id, "atendente", owner, "ligacao_em_curso", other)
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "operator already on a call"})
 		return
 	}
 	if !s.broker.setOwner(id, owner) {
+		s.log.Warn("atender recusado: chamada ja reivindicada por outro atendente",
+			"call_id", id, "atendente", owner)
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "claimed by another client"})
 		return
 	}
+	s.log.Info("atender solicitado", "call_id", id, "atendente", owner)
 	s.broker.emitIncomingClaimed(sess.id, id, owner)
 	if err := ac.cm.AcceptCall(r.Context(), id); err != nil {
+		s.log.Error("atender falhou no WhatsApp", "call_id", id, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
