@@ -27,6 +27,11 @@ func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(log)
 
+	if !authConfigured() {
+		log.Error("defina WACALLS_USER e WACALLS_PASSWORD antes de subir (veja LEIA-ME-DEPLOY.md)")
+		os.Exit(1)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -42,7 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	httpSrv := &http.Server{Addr: *addr, Handler: srv.routes()}
+	httpSrv := &http.Server{Addr: *addr, Handler: withBasicAuth(srv.routes())}
 	go func() {
 		log.Info("HTTP server listening", "addr", *addr)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
