@@ -27,4 +27,4 @@ ENV TZ=America/Sao_Paulo
 EXPOSE 8080
 
 # A sessao do WhatsApp fica em /data — precisa de volume, senao some no redeploy.
-CMD ["/app/wacalls", "-addr", ":8080", "-db", "/data/wacalls.db", "-static", "/app/client/dist"]
+CMD ["/app/wacalls", "-addr", ":8080", "-db", "/data/wacalls.db", "-static", "/app/client/dist", "-debug"]
