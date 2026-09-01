@@ -2,10 +2,12 @@ package main
 
 import (
 	"log/slog"
+	"sync"
 	"sync/atomic"
 
 	"wacalls/internal/voip/media"
 
+	"github.com/coder/websocket"
 	"github.com/pion/webrtc/v4"
 )
 
@@ -20,6 +22,12 @@ type Bridge struct {
 	pc  *webrtc.PeerConnection
 	dc  atomic.Pointer[webrtc.DataChannel]
 	log *slog.Logger
+
+	// Caminho alternativo: audio pelo mesmo endereco HTTPS do site, usado
+	// quando o servidor esta atras de proxy e o WebRTC nao negocia. Quando
+	// ws != nil, o data channel nao e usado. Ver wsbridge.go.
+	ws   *websocket.Conn
+	wsMu sync.Mutex
 
 	// OnBrowserPCM is invoked with decoded 16 kHz mono PCM captured from the browser mic.
 	OnBrowserPCM func(pcm []float32)
@@ -77,14 +85,23 @@ func NewBridge(offerSDP string, log *slog.Logger) (*Bridge, string, error) {
 // WritePCM sends 16 kHz mono float32 PCM to the browser as Int16 LE over the data
 // channel. It is a no-op until the channel is open.
 func (b *Bridge) WritePCM(pcm []float32) error {
+	if len(pcm) == 0 {
+		return nil
+	}
+	if b.ws != nil {
+		return b.writeWS(media.PCMFloat32ToInt16LE(pcm))
+	}
 	dc := b.dc.Load()
-	if dc == nil || len(pcm) == 0 {
+	if dc == nil {
 		return nil
 	}
 	return dc.Send(media.PCMFloat32ToInt16LE(pcm))
 }
 
 func (b *Bridge) Close() {
+	if b.ws != nil {
+		_ = b.ws.Close(websocket.StatusNormalClosure, "")
+	}
 	if b.pc != nil {
 		_ = b.pc.Close()
 	}

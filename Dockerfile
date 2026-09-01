@@ -25,8 +25,6 @@ RUN mkdir -p /data && chown -R wacalls:wacalls /data /app
 USER wacalls
 ENV TZ=America/Sao_Paulo
 EXPOSE 8080
-# Faixa de audio (UDP) — precisa estar publicada e liberada no firewall.
-EXPOSE 50000-50019/udp
 
 # A sessao do WhatsApp fica em /data — precisa de volume, senao some no redeploy.
 CMD ["/app/wacalls", "-addr", ":8080", "-db", "/data/wacalls.db", "-static", "/app/client/dist", "-debug"]

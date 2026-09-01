@@ -22,6 +22,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/sessions/{sid}/pair", s.handleSessionPair)
 	mux.HandleFunc("POST /api/sessions/{sid}/calls", s.handleStartCall)
 	mux.HandleFunc("POST /api/sessions/{sid}/calls/{id}/webrtc", s.handleWebRTC)
+	mux.HandleFunc("GET /api/sessions/{sid}/calls/{id}/audio", s.handleAudioWS)
 	mux.HandleFunc("POST /api/sessions/{sid}/calls/{id}/accept", s.handleAccept)
 	mux.HandleFunc("POST /api/sessions/{sid}/calls/{id}/reject", s.handleReject)
 	mux.HandleFunc("DELETE /api/sessions/{sid}/calls/{id}", s.handleEndCall)
@@ -133,6 +134,12 @@ func (s *server) handleWebRTC(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *server) handleAudioWS(w http.ResponseWriter, r *http.Request) {
+	if sess := s.sessionByID(w, r.PathValue("sid")); sess != nil {
+		s.doAudioWS(sess, w, r)
+	}
+}
+
 func (s *server) handleAccept(w http.ResponseWriter, r *http.Request) {
 	if sess := s.sessionByID(w, r.PathValue("sid")); sess != nil {
 		s.doAccept(sess, w, r)
@@ -222,6 +229,34 @@ func (s *server) doWebRTC(sess *Session, w http.ResponseWriter, r *http.Request)
 	}
 	sess.setBridge(callID, bridge)
 	writeJSON(w, http.StatusOK, map[string]string{"sdp_answer": answer})
+}
+
+// doAudioWS liga o audio do navegador pela mesma conexao HTTPS do site.
+// Substitui o doWebRTC quando o servidor esta atras de proxy. Ver wsbridge.go.
+func (s *server) doAudioWS(sess *Session, w http.ResponseWriter, r *http.Request) {
+	callID := r.PathValue("id")
+	ac, ok := sess.reg.get(callID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such call"})
+		return
+	}
+
+	bridge, err := NewWSBridge(w, r, s.log)
+	if err != nil {
+		s.log.Error("audio websocket recusado", "call_id", callID, "err", err)
+		return
+	}
+	bridge.OnBrowserPCM = func(pcm []float32) {
+		ac.cm.FeedCapturedPCM(pcm)
+	}
+	bridge.OnTerminalICE = func() {
+		go sess.terminateCall(callID, core.EndCallReasonUserEnded)
+	}
+	sess.setBridge(callID, bridge)
+	s.log.Info("audio por websocket conectado", "call_id", callID)
+
+	// Bloqueia ate a conexao cair; e o que mantem a chamada de pe.
+	bridge.readLoop(r.Context())
 }
 
 func (s *server) doAccept(sess *Session, w http.ResponseWriter, r *http.Request) {
